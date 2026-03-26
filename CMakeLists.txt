@@ -8,9 +8,8 @@ if(WIN32)
     add_compile_definitions(
         _WIN32_WINNT=0x0601
         WIN32_LEAN_AND_MEAN
-        BOOST_JSON_DYN_LINK=1
-        BOOST_ALL_DYN_LINK=1
-        BOOST_JSON_STATIC_LINK=0
+        BOOST_JSON_STATIC_LINK=1
+        BOOST_ALL_STATIC_LINK=1
     )
 endif()
 
@@ -34,6 +33,7 @@ add_library(psycho_logic STATIC
 
 target_include_directories(psycho_logic PUBLIC 
     src
+    src/error
     ${SQLITE3_INCLUDE_DIR}
     ${Boost_INCLUDE_DIRS}
 )
@@ -42,13 +42,14 @@ target_link_libraries(psycho_logic PUBLIC ${SQLITE3_LIBRARY})
 
 add_executable(psycho_server
     src/network/Server.cpp
-    src/network/NetworkSession.cpp   
+    src/network/NetworkSession.cpp
     src/network/RequestHandler.cpp
     main.cpp
 )
 
 target_include_directories(psycho_server PRIVATE 
     src
+    src/error
     ${Boost_INCLUDE_DIRS}
 )
 
@@ -56,7 +57,7 @@ target_link_libraries(psycho_server PRIVATE
     psycho_logic
     Boost::system
     Boost::thread
-    Boost::json                 
+    Boost::json
 )
 
 add_custom_command(TARGET psycho_server POST_BUILD
