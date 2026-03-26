@@ -228,6 +228,46 @@ std::optional<User> Database::findUserById(int id) {
     return result;
 }
 
+std::vector<User> Database::getAllPsychologists() {
+    std::string sql = "SELECT id, name, email, password_hash, role, "
+                      "specialization, education, description, photo_path "
+                      "FROM users WHERE role = 'psychologist'";
+    
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    sqlite3_stmt* stmt;
+    std::vector<User> result;
+    
+    if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        LOG_ERROR("Failed to prepare get psychologists query: " + 
+                  std::string(sqlite3_errmsg(m_db)));
+        return result;
+    }
+    
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        User user;
+        user.id = sqlite3_column_int(stmt, 0);
+        user.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        user.email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        user.passwordHash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        user.role = UserRole::Psychologist;
+        
+        if (sqlite3_column_text(stmt, 5)) 
+            user.specialization = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        if (sqlite3_column_text(stmt, 6)) 
+            user.education = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+        if (sqlite3_column_text(stmt, 7)) 
+            user.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
+        if (sqlite3_column_text(stmt, 8)) 
+            user.photoPath = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
+        
+        result.push_back(user);
+    }
+    
+    sqlite3_finalize(stmt);
+    LOG_INFO("Found " + std::to_string(result.size()) + " psychologists");
+    return result;
+}
+
 bool Database::validatePassword(const std::string& email, const std::string& password) {
     auto user = findUserByEmail(email);
     if (!user) {
