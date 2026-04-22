@@ -31,4 +31,4 @@ namespace error {
     inline int errorCodeToHttpStatus(ErrorCode code) {
         return static_cast<int>(code);
     }
-} 
+}

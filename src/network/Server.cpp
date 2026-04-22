@@ -2,7 +2,6 @@
 #include "NetworkSession.h"
 #include "../utils/Logger.h"
 
-
 Server::Server(short port, std::shared_ptr<Database> db, int threadCount)
     : m_acceptor(m_ioContext, 
                  boost::asio::ip::tcp::endpoint(

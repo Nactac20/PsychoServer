@@ -311,3 +311,173 @@ TEST_F(NetworkIntegrationTest, WrongPassword) {
     EXPECT_EQ(json["status"], "error");
     EXPECT_EQ(json["code"], 401);
 }
+
+TEST_F(NetworkIntegrationTest, AddSlot) {
+    long long futureTime = static_cast<long long>(std::time(nullptr)) + 86400;
+    
+    std::string request = R"({
+        "action": "add_slot",
+        "data": {
+            "psychologist_id": )" + std::to_string(psyId) + R"(,
+            "start_time": )" + std::to_string(futureTime) + R"(,
+            "duration": 60,
+            "format": "online"
+        }
+    })";
+    
+    std::string response = sendRequest(request);
+    auto json = boost::json::parse(response).as_object();
+    
+    EXPECT_EQ(json["status"], "success");
+}
+
+TEST_F(NetworkIntegrationTest, DeleteSlot) {
+    Slot slot;
+    slot.psychologistId = psyId;
+    slot.startTime = std::chrono::system_clock::now() + std::chrono::hours(24);
+    slot.durationMinutes = 60;
+    slot.format = "online";
+    db->addSlot(slot);
+    
+    auto slots = db->getFreeSlots(psyId);
+    ASSERT_FALSE(slots.empty());
+    
+    std::string request = R"({
+        "action": "delete_slot",
+        "data": {
+            "slot_id": )" + std::to_string(slots[0].id) + R"(,
+            "psychologist_id": )" + std::to_string(psyId) + R"(
+        }
+    })";
+    
+    std::string response = sendRequest(request);
+    auto json = boost::json::parse(response).as_object();
+    
+    EXPECT_EQ(json["status"], "success");
+    
+    slots = db->getFreeSlots(psyId);
+    EXPECT_EQ(slots.size(), 0);
+}
+
+TEST_F(NetworkIntegrationTest, GetMySessionsAsClient) {
+    Slot slot;
+    slot.psychologistId = psyId;
+    slot.startTime = std::chrono::system_clock::now() + std::chrono::hours(24);
+    slot.durationMinutes = 60;
+    slot.format = "online";
+    db->addSlot(slot);
+    
+    auto slots = db->getFreeSlots(psyId);
+    ASSERT_FALSE(slots.empty());
+    db->bookSlot(slots[0].id, clientId);
+    
+    std::string request = R"({
+        "action": "get_my_sessions",
+        "data": {
+            "client_id": )" + std::to_string(clientId) + R"(
+        }
+    })";
+    
+    std::string response = sendRequest(request);
+    auto json = boost::json::parse(response).as_object();
+    
+    EXPECT_EQ(json["status"], "success");
+    EXPECT_TRUE(json["data"].is_array());
+    EXPECT_GE(json["data"].as_array().size(), 1u);
+    
+    auto firstSession = json["data"].as_array()[0].as_object();
+    EXPECT_TRUE(firstSession.contains("session_id"));
+    EXPECT_TRUE(firstSession.contains("psychologist_name"));
+}
+
+TEST_F(NetworkIntegrationTest, GetSessionInfo) {
+    Slot slot;
+    slot.psychologistId = psyId;
+    slot.startTime = std::chrono::system_clock::now() + std::chrono::hours(24);
+    slot.durationMinutes = 60;
+    slot.format = "online";
+    db->addSlot(slot);
+    
+    auto slots = db->getFreeSlots(psyId);
+    ASSERT_FALSE(slots.empty());
+    int sessionId = db->bookSlot(slots[0].id, clientId);
+    ASSERT_GT(sessionId, 0);
+    
+    std::string request = R"({
+        "action": "get_session_info",
+        "data": {
+            "session_id": )" + std::to_string(sessionId) + R"(
+        }
+    })";
+    
+    std::string response = sendRequest(request);
+    auto json = boost::json::parse(response).as_object();
+    
+    EXPECT_EQ(json["status"], "success");
+    auto data = json["data"].as_object();
+    EXPECT_EQ(data["client_id"].as_int64(), clientId);
+    EXPECT_EQ(data["psychologist_id"].as_int64(), psyId);
+    EXPECT_EQ(data["client_name"], "Test Client");
+    EXPECT_EQ(data["psychologist_name"], "Dr. Test");
+}
+
+TEST_F(NetworkIntegrationTest, SendAndGetMessages) {
+    Slot slot;
+    slot.psychologistId = psyId;
+    slot.startTime = std::chrono::system_clock::now() + std::chrono::hours(24);
+    slot.durationMinutes = 60;
+    slot.format = "online";
+    db->addSlot(slot);
+    
+    auto slots = db->getFreeSlots(psyId);
+    ASSERT_FALSE(slots.empty());
+    int sessionId = db->bookSlot(slots[0].id, clientId);
+    ASSERT_GT(sessionId, 0);
+    
+    std::string sendReq = R"({
+        "action": "send_message",
+        "data": {
+            "session_id": )" + std::to_string(sessionId) + R"(,
+            "sender_id": )" + std::to_string(clientId) + R"(,
+            "text": "Hello doctor!"
+        }
+    })";
+    
+    std::string sendResp = sendRequest(sendReq);
+    auto sendJson = boost::json::parse(sendResp).as_object();
+    EXPECT_EQ(sendJson["status"], "success");
+    
+    std::string getReq = R"({
+        "action": "get_messages",
+        "data": {
+            "session_id": )" + std::to_string(sessionId) + R"(
+        }
+    })";
+    
+    std::string getResp = sendRequest(getReq);
+    auto getJson = boost::json::parse(getResp).as_object();
+    
+    EXPECT_EQ(getJson["status"], "success");
+    EXPECT_TRUE(getJson["data"].is_array());
+    EXPECT_GE(getJson["data"].as_array().size(), 1u);
+    
+    auto firstMsg = getJson["data"].as_array()[0].as_object();
+    EXPECT_EQ(firstMsg["sender_id"].as_int64(), clientId);
+    EXPECT_EQ(firstMsg["text"], "Hello doctor!");
+    EXPECT_EQ(firstMsg["sender_name"], "Test Client");
+}
+
+TEST_F(NetworkIntegrationTest, GetSessionInfoNotFound) {
+    std::string request = R"({
+        "action": "get_session_info",
+        "data": {
+            "session_id": 99999
+        }
+    })";
+    
+    std::string response = sendRequest(request);
+    auto json = boost::json::parse(response).as_object();
+    
+    EXPECT_EQ(json["status"], "error");
+    EXPECT_EQ(json["code"], 404);
+}
