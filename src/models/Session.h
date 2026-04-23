@@ -24,5 +24,11 @@ struct Session {
     int psychologistId = 0;
     SessionStatus status = SessionStatus::Scheduled;
     std::time_t createdAt = 0;
-    std::string psychologistNotes;
+    
+
+    long long startTime = 0;
+    int duration = 0;
+    std::string clientName;
+    std::string psychologistName;
+    std::string format;
 };

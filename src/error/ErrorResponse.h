@@ -68,4 +68,4 @@ namespace error {
         std::string m_message;
         std::vector<FieldError> m_fieldErrors;
     };
-} 
+}
